@@ -379,7 +379,7 @@ class DJORNL_Parser(object):
                 str(datum[_])
                 for _ in ["node1", "node2", "edge_type", "directed", "score"]
             ]
-        )
+        ).replace("/", ":slash:")
 
         # keep track of the nodes mentioned in this edge set
         for node_n in ["1", "2"]:
@@ -658,12 +658,17 @@ class DJORNL_Parser(object):
 
         resp = requests.put(
             self.config("API_URL") + "/api/v1/documents",
-            params={"collection": coll_name, "on_duplicate": on_dupe},
+            params={
+                "collection": coll_name,
+                "on_duplicate": on_dupe,
+                "display_errors": True
+            },
             headers={"Authorization": self.config("AUTH_TOKEN")},
             data="\n".join(json.dumps(d) for d in docs),
         )
         if not resp.ok:
-            raise RuntimeError(resp.text)
+            import pdb;pdb.set_trace()
+            raise RuntimeError(resp.status_code, resp.text)
 
         print(f"Saved docs to collection {coll_name}!")
         print(resp.text)
@@ -822,11 +827,12 @@ def main():
     args = argparser.parse_args()
     parser = DJORNL_Parser()
     summary = dict()
-    try:
-        summary = parser.load_data(dry_run=args.dry)
-    except Exception as err:
-        print("Unhandled exception", err)
-        exit(1)
+    #try:
+    #    summary = parser.load_data(dry_run=args.dry)
+    summary = parser.load_data(dry_run=args.dry)
+    # except Exception as err:
+    #    print("Unhandled exception", err)
+    #    exit(1)
     errors = summary.get("errors")
     if summary:
         print(format_summary(summary, args.output))
