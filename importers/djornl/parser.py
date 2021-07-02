@@ -20,7 +20,10 @@ import csv
 import json
 import os
 import requests
+import sqlite3
 import yaml
+
+import pandas as pd
 
 import importers.utils.config as config
 from relation_engine_server.utils.json_validation import (
@@ -640,13 +643,22 @@ class DJORNL_Parser(object):
             "err_list": err_list,
         }
 
-    def save_dataset(self, dataset=None):
+    def save_dataset(self, sqlite_db_path="", dataset=None):
 
         if dataset is None:
             dataset = {
                 "nodes": list(self.node_ix.values()),
                 "edges": list(self.edge_ix.values()),
             }
+
+        if sqlite_db_path:
+            con = sqlite3.connect(sqlite_db_path)
+            nodes_df = pd.DataFrame(dataset["nodes"])
+            edges_df = pd.DataFrame(dataset["edges"])
+            # ndf2 = pd.DataFrame([ [cell if not isinstance(cell, list) else ", ".join(cell) for cell in row] for row in nodes_df.values], columns=nodes_df.columns)
+            nodes_df.to_sql("nodes", con, if_exists="replace")
+            edges_df.to_sql("edges", con, if_exists="replace")
+            return
 
         if "nodes" in dataset and len(dataset["nodes"]) > 0:
             self.save_docs(self.config("node_name"), dataset["nodes"])
@@ -675,7 +687,7 @@ class DJORNL_Parser(object):
         print("=" * 80)
         return resp
 
-    def load_data(self, dry_run=False):
+    def load_data(self, dry_run=False, sqlite_db_path=""):
         all_errs = []
         method_ix = {
             "clusters": self.load_clusters,
@@ -689,7 +701,7 @@ class DJORNL_Parser(object):
 
         # if there are no errors then save the dataset unless this is a dry run
         if len(all_errs) == 0 and not dry_run:
-            self.save_dataset()
+            self.save_dataset(sqlite_db_path=sqlite_db_path)
 
         # report stats on the data that has been gathered
         return self.summarise_dataset(all_errs)
@@ -824,12 +836,18 @@ def main():
         default="text",
         help="Specify the format of any output generated. (text or json)",
     )
+    argparser.add_argument(
+        "--sqlite-db-path",
+        dest="sqlite_db_path",
+        default="text",
+        help="Path for a sqlite database to store the data instead of RE.",
+    )
     args = argparser.parse_args()
     parser = DJORNL_Parser()
     summary = dict()
     #try:
     #    summary = parser.load_data(dry_run=args.dry)
-    summary = parser.load_data(dry_run=args.dry)
+    summary = parser.load_data(dry_run=args.dry, sqlite_db_path=args.sqlite_db_path)
     # except Exception as err:
     #    print("Unhandled exception", err)
     #    exit(1)
